@@ -1,154 +1,130 @@
-import { Routes, Route, Navigate } from "react-router-dom";
-import Landing from "@/pages/Landing";
-import Signup from "@/pages/Auth/Signup";
+import { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import PaperBackground from "@/components/PaperBackground";
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 
-export default function App() {
-  return (
-    <Routes>
-      <Route path="/" element={<Landing />} />
-      <Route path="/signup" element={<Signup />} />
-      {/* optional placeholder for now */}
-      <Route path="/login" element={<div style={{padding:24}}>Login page coming soon</div>} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  );
+/** Fake API: fails if email contains "error" */
+async function fakeLoginApi(data: { email: string; password: string }) {
+  await new Promise((r) => setTimeout(r, 600));
+  if (data.email.toLowerCase().includes("error")) {
+    throw new Error("Invalid credentials. Please try again.");
+  }
+  return { ok: true };
 }
 
+export default function Login() {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [emailErr, setEmailErr] = useState<string | null>(null);
+  const [passwordErr, setPasswordErr] = useState<string | null>(null);
+  const [submitErr, setSubmitErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-import { useEffect, useRef, useState, useMemo } from "react";
-import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { PenLine } from "lucide-react";
-import { Link } from "react-router-dom";
-import "@fontsource/pacifico";
+  function validate() {
+    let ok = true;
+    setEmailErr(null);
+    setPasswordErr(null);
 
-export default function Landing() {
-  const textRef = useRef<SVGTextElement | null>(null);
-  const [dash, setDash] = useState(0);
-  const [ready, setReady] = useState(false);
+    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!emailOk) {
+      setEmailErr("Enter a valid email.");
+      ok = false;
+    }
+    if (password.length < 8) {
+      setPasswordErr("Password must be at least 8 characters.");
+      ok = false;
+    }
+    return ok;
+  }
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      // Wait for the custom font before measuring text length
-      // @ts-expect-error
-      if (document.fonts?.ready) await document.fonts.ready;
-      if (cancelled) return;
-      if (textRef.current) {
-        const L = Math.ceil(textRef.current.getComputedTextLength());
-        setDash(L);
-        setReady(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitErr(null);
+    if (!validate()) return;
 
-  const paperStyle = useMemo<React.CSSProperties>(
-    () => ({
-      backgroundColor: "#faf7f2",
-      backgroundImage: [
-        "radial-gradient(circle at 20% 30%, rgba(0,0,0,0.025) 0.5px, transparent 1px)",
-        "radial-gradient(circle at 80% 70%, rgba(0,0,0,0.02) 0.5px, transparent 1px)",
-        "repeating-linear-gradient(90deg, rgba(0,0,0,0.018) 0, rgba(0,0,0,0.018) 1px, transparent 2px, transparent 6px)",
-        "radial-gradient(ellipse at center, rgba(255,255,255,0.9) 0%, rgba(0,0,0,0.04) 100%)",
-      ].join(","),
-      backgroundSize:
-        "240px 240px, 260px 260px, 12px 100%, 100% 100%",
-      backgroundBlendMode: "multiply,multiply,normal,normal",
-    }),
-    []
-  );
+    setLoading(true);
+    try {
+      await fakeLoginApi({ email: email.trim(), password });
+      // success → back to landing (adjust to /dashboard later if you add it)
+      navigate("/", { replace: true });
+    } catch (err: any) {
+      setSubmitErr(err?.message || "Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <div
-      className="min-h-screen w-full relative overflow-hidden"
-      style={paperStyle}
-    >
-      {/* Top-right nav buttons */}
-      <nav className="absolute right-4 top-4 flex items-center gap-3">
-        <Button
-          asChild
-          variant="ghost"
-          className="backdrop-blur-sm bg-white/50 hover:bg-white/80"
+    <PaperBackground>
+      <div className="min-h-screen w-full grid place-items-center px-4">
+        <form
+          onSubmit={onSubmit}
+          className="w-full max-w-md bg-white/70 backdrop-blur-sm rounded-xl p-6 border border-neutral-200 shadow-sm"
         >
-          <Link to="/login">Log in</Link>
-        </Button>
-        <Button asChild>
-          <Link to="/signup">Sign up</Link>
-        </Button>
-      </nav>
+          <h1 className="text-2xl font-semibold text-neutral-900">Log in</h1>
+          <p className="text-sm text-neutral-600 mb-4">Welcome back.</p>
 
-      {/* Center animated wordmark */}
-      <main className="min-h-screen grid place-items-center">
-        <div className="relative w-full max-w-4xl mx-auto px-6">
-          <svg
-            className="w-full"
-            viewBox="0 0 1200 300"
-            role="img"
-            aria-labelledby="journalTitle"
-          >
-            <title id="journalTitle">Journal</title>
+          {submitErr && (
+            <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {submitErr}
+            </div>
+          )}
 
-            {/* Outline animation */}
-            <motion.text
-              key={dash}
-              ref={textRef}
-              x="50%"
-              y="55%"
-              textAnchor="middle"
-              style={{
-                fontFamily: "'Pacifico', ui-serif, Georgia, serif",
-                fontSize: 180,
-                fill: "none",
-                stroke: "#111827",
-                strokeWidth: 2.2,
-                strokeLinecap: "round",
-                strokeLinejoin: "round",
-                strokeDasharray: dash || 1,
-              }}
-              initial={{ strokeDashoffset: dash || 1 }}
-              animate={{ strokeDashoffset: 0 }}
-              transition={{
-                duration: 3.6,
-                ease: [0.65, 0, 0.35, 1],
-                delay: 0.2,
-              }}
-            >
-              Journal
-            </motion.text>
+          <div className="grid gap-3">
+            <div>
+              <label className="block text-sm font-medium text-neutral-800">Email</label>
+              <input
+                className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setEmailErr(null);
+                  setSubmitErr(null);
+                }}
+                autoComplete="email"
+              />
+              {emailErr && <p className="mt-1 text-xs text-red-600">{emailErr}</p>}
+            </div>
 
-            {/* Fill fade-in */}
-            <motion.text
-              x="50%"
-              y="55%"
-              textAnchor="middle"
-              style={{
-                fontFamily: "'Pacifico', ui-serif, Georgia, serif",
-                fontSize: 180,
-                fill: "#111827",
-              }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: ready ? 1 : 0 }}
-              transition={{ delay: 3.6, duration: 0.5 }}
-            >
-              Journal
-            </motion.text>
-          </svg>
+            <div>
+              <label className="block text-sm font-medium text-neutral-800">Password</label>
+              <input
+                className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                type="password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setPasswordErr(null);
+                  setSubmitErr(null);
+                }}
+                autoComplete="current-password"
+              />
+              {passwordErr && <p className="mt-1 text-xs text-red-600">{passwordErr}</p>}
+            </div>
+          </div>
 
-          {/* Pen accent */}
-          <motion.div
-            className="absolute -right-2 top-1/2 -translate-y-1/2 select-none pointer-events-none"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 3.4, duration: 0.4 }}
-            aria-hidden
-          >
-            <PenLine className="w-8 h-8 text-neutral-900" />
-          </motion.div>
-        </div>
-      </main>
-    </div>
+          <Button type="submit" className="mt-4 w-full" disabled={loading} aria-disabled={loading}>
+            {loading ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Logging in…
+              </span>
+            ) : (
+              "Log in"
+            )}
+          </Button>
+
+          <p className="mt-3 text-sm text-neutral-600">
+            Don’t have an account?{" "}
+            <Link className="underline underline-offset-2" to="/signup">
+              Sign up
+            </Link>
+          </p>
+        </form>
+      </div>
+    </PaperBackground>
   );
 }
