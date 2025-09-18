@@ -1,14 +1,24 @@
+import { motion } from "framer-motion";
+import { PenLine } from "lucide-react";
+import "@fontsource/pacifico";
+
 export default function App() {
   return (
     <div className="min-h-screen grid place-items-center bg-white">
-      <div className="text-center">
-        <h1 className="text-4xl md:text-5xl font-bold text-neutral-900">
-          Tailwind v4 is working ✅
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="text-center"
+      >
+        <h1 style={{ fontFamily: "'Pacifico', cursive" }} className="text-5xl text-neutral-900">
+          Journal
         </h1>
-        <p className="mt-2 text-neutral-600 animate-in fade-in-0 duration-300">
-          You should see styled, centered text.
-        </p>
-      </div>
+        <div className="mt-3 flex items-center justify-center gap-2 text-neutral-700">
+          <PenLine className="w-6 h-6" />
+          <span>Framer + Lucide working ✅</span>
+        </div>
+      </motion.div>
     </div>
   );
 }
