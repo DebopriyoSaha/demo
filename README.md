@@ -1,57 +1,23 @@
-export type User = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;   // stored lowercased for matching
-  password: string; // DEMO ONLY — plain text. In real apps, hash this.
-  phone: string;
-};
+async function onSubmit(e: React.FormEvent) {
+  e.preventDefault();
+  setSubmitError(null);
 
-const USERS_KEY = "journal.users";        // array<User>
-const SESSION_KEY = "journal.currentUser"; // user id
+  if (!validate()) return;
 
-function loadUsers(): User[] {
+  setSubmitting(true);
   try {
-    const raw = localStorage.getItem(USERS_KEY);
-    return raw ? (JSON.parse(raw) as User[]) : [];
-  } catch {
-    return [];
+    signup({
+      firstName: form.firstName.trim(),
+      lastName: form.lastName.trim(),
+      email: form.email.trim(),
+      password: form.password,
+      phone: form.phone.trim(),
+    });
+    // after successful signup, go choose a profile
+    navigate("/profiles", { replace: true });
+  } catch (err: any) {
+    setSubmitError(err?.message || "Something went wrong. Please try again.");
+  } finally {
+    setSubmitting(false);
   }
-}
-
-function saveUsers(users: User[]) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
-}
-
-export function signup(user: Omit<User, "id">): User {
-  const users = loadUsers();
-  const emailL = user.email.toLowerCase();
-  if (users.some(u => u.email === emailL)) {
-    throw new Error("That email is already in use.");
-  }
-  const newUser: User = { ...user, id: crypto.randomUUID(), email: emailL };
-  users.push(newUser);
-  saveUsers(users);
-  localStorage.setItem(SESSION_KEY, newUser.id); // sign in after signup
-  return newUser;
-}
-
-export function login(email: string, password: string): User {
-  const users = loadUsers();
-  const emailL = email.toLowerCase();
-  const found = users.find(u => u.email === emailL && u.password === password);
-  if (!found) throw new Error("Invalid email or password.");
-  localStorage.setItem(SESSION_KEY, found.id);
-  return found;
-}
-
-export function getCurrentUser(): User | null {
-  const id = localStorage.getItem(SESSION_KEY);
-  if (!id) return null;
-  const users = loadUsers();
-  return users.find(u => u.id === id) || null;
-}
-
-export function logout() {
-  localStorage.removeItem(SESSION_KEY);
 }
