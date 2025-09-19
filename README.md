@@ -5,75 +5,94 @@ import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth";
 import ConfirmDialog from "@/components/ConfirmDialog";
 
-type Task = {
+type GrowthType = "Certification" | "Skill" | "Experience";
+type GrowthItem = {
   id: string;
   title: string;
-  due?: string; // ISO date (YYYY-MM-DD) or undefined
+  type: GrowthType;
+  start?: string;   // YYYY-MM-DD
+  target?: string;  // YYYY-MM-DD
+  progress: number; // 0..100
+  notes?: string;
   completed: boolean;
   createdAt: string; // ISO
-  profile: "work" | "personal";
+  profile: "work" | "personal"; // we'll focus on work here
 };
 
-const PROFILE: Task["profile"] = "work"; // this page is for Work
+const PROFILE: GrowthItem["profile"] = "work";
 
-// ----- storage helpers (per-user bucket) -----
+// ---------- storage (per user) ----------
 function currentUserId(): string | null {
   const u = getCurrentUser();
   return u ? u.id : null;
 }
 function key(uid: string) {
-  return `journal.todos.${uid}`;
+  return `journal.growth.${uid}`;
 }
-function loadAll(): Task[] {
+function loadAll(): GrowthItem[] {
   const uid = currentUserId();
   if (!uid) return [];
   try {
     const raw = localStorage.getItem(key(uid));
-    return raw ? (JSON.parse(raw) as Task[]) : [];
+    return raw ? (JSON.parse(raw) as GrowthItem[]) : [];
   } catch {
     return [];
   }
 }
-function saveAll(tasks: Task[]) {
+function saveAll(items: GrowthItem[]) {
   const uid = currentUserId();
   if (!uid) return;
-  localStorage.setItem(key(uid), JSON.stringify(tasks));
+  localStorage.setItem(key(uid), JSON.stringify(items));
 }
 
-// ----- Add Task inline form -----
-function AddTaskInline({
-  onAdd,
+// ---------- Add/Edit form ----------
+function GrowthForm({
+  initial,
+  onSave,
   onCancel,
 }: {
-  onAdd: (t: { title: string; due?: string }) => void;
+  initial?: Partial<GrowthItem>;
+  onSave: (data: Omit<GrowthItem, "id" | "createdAt" | "completed" | "profile"> & { completed?: boolean }) => void;
   onCancel: () => void;
 }) {
-  const [title, setTitle] = useState("");
-  const [due, setDue] = useState<string>("");
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [type, setType] = useState<GrowthType>((initial?.type as GrowthType) ?? "Certification");
+  const [start, setStart] = useState<string>(initial?.start ?? "");
+  const [target, setTarget] = useState<string>(initial?.target ?? "");
+  const [progress, setProgress] = useState<number>(typeof initial?.progress === "number" ? initial!.progress : 0);
+  const [notes, setNotes] = useState<string>(initial?.notes ?? "");
   const [err, setErr] = useState<string | null>(null);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) {
-      setErr("Task title is required.");
+      setErr("Title is required.");
       return;
     }
-    onAdd({ title: title.trim(), due: due || undefined });
+    onSave({
+      title: title.trim(),
+      type,
+      start: start || undefined,
+      target: target || undefined,
+      progress: Math.max(0, Math.min(100, progress)),
+      notes: notes?.trim() ? notes.trim() : undefined,
+    });
   }
 
   return (
     <form
       onSubmit={submit}
-      className="w-full max-w-xl rounded-xl border border-neutral-200 bg-white/80 backdrop-blur-sm p-4 shadow-sm"
+      className="w-full max-w-3xl rounded-xl border border-neutral-200 bg-white/80 backdrop-blur-sm p-5 shadow-sm"
     >
       {err && (
         <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {err}
         </div>
       )}
-      <div className="grid gap-3 md:grid-cols-3">
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-neutral-800">Task</label>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div>
+          <label className="block text-sm font-medium text-neutral-800">Title</label>
           <input
             className="mt-1 w-full rounded-md border border-neutral-300 bg-white/90 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-neutral-400"
             value={title}
@@ -81,23 +100,71 @@ function AddTaskInline({
               setTitle(e.target.value);
               setErr(null);
             }}
-            placeholder="e.g., Prepare deck for client call"
+            placeholder="e.g., AWS Solutions Architect Associate"
             autoFocus
           />
         </div>
+
         <div>
-          <label className="block text-sm font-medium text-neutral-800">Deadline</label>
+          <label className="block text-sm font-medium text-neutral-800">Type</label>
+          <select
+            className="mt-1 w-full rounded-md border border-neutral-300 bg-white/90 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-neutral-400"
+            value={type}
+            onChange={(e) => setType(e.target.value as GrowthType)}
+          >
+            <option>Certification</option>
+            <option>Skill</option>
+            <option>Experience</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-800">Start date</label>
           <input
             type="date"
-            value={due}
-            onChange={(e) => setDue(e.target.value)}
             className="mt-1 w-full rounded-md border border-neutral-300 bg-white/90 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-neutral-400"
+            value={start}
+            onChange={(e) => setStart(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-800">Target date</label>
+          <input
+            type="date"
+            className="mt-1 w-full rounded-md border border-neutral-300 bg-white/90 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-neutral-400"
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
           />
         </div>
       </div>
 
-      <div className="mt-3 flex items-center gap-2">
-        <Button type="submit">Add</Button>
+      <div className="mt-3">
+        <label className="block text-sm font-medium text-neutral-800">
+          Progress <span className="text-neutral-500">({progress}%)</span>
+        </label>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          value={progress}
+          onChange={(e) => setProgress(parseInt(e.target.value || "0"))}
+          className="mt-1 w-full"
+        />
+      </div>
+
+      <div className="mt-3">
+        <label className="block text-sm font-medium text-neutral-800">Notes (optional)</label>
+        <textarea
+          className="mt-1 w-full min-h-[120px] rounded-md border border-neutral-300 bg-white/90 px-3 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-neutral-400"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Brief plan, resources, or what you learned so far…"
+        />
+      </div>
+
+      <div className="mt-4 flex items-center gap-2">
+        <Button type="submit">Save</Button>
         <Button type="button" variant="ghost" onClick={onCancel}>
           Cancel
         </Button>
@@ -106,11 +173,24 @@ function AddTaskInline({
   );
 }
 
-export default function Todo() {
+// ---------- Card ----------
+function ProgressBar({ value }: { value: number }) {
+  return (
+    <div className="h-2 w-full rounded-full bg-neutral-200 overflow-hidden">
+      <div
+        className="h-full bg-neutral-900"
+        style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
+      />
+    </div>
+  );
+}
+
+export default function Growth() {
   const navigate = useNavigate();
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [showAdd, setShowAdd] = useState(false);
+  const [items, setItems] = useState<GrowthItem[]>([]);
   const [tab, setTab] = useState<"active" | "completed">("active");
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   // auth + work profile context
@@ -119,58 +199,96 @@ export default function Todo() {
       navigate("/login", { replace: true });
       return;
     }
-    // pin work profile while in this page
     localStorage.setItem("journal.selectedProfile", "work");
   }, [navigate]);
 
   // load
   useEffect(() => {
-    setTasks(loadAll());
+    setItems(loadAll());
   }, []);
 
-  // derived counts
-  const activeCount = useMemo(() => tasks.filter((t) => !t.completed && t.profile === PROFILE).length, [tasks]);
-  const completedCount = useMemo(() => tasks.filter((t) => t.completed && t.profile === PROFILE).length, [tasks]);
+  const activeCount = useMemo(
+    () => items.filter((i) => !i.completed && i.profile === PROFILE).length,
+    [items]
+  );
+  const completedCount = useMemo(
+    () => items.filter((i) => i.completed && i.profile === PROFILE).length,
+    [items]
+  );
 
-  // filter + sort
   const visible = useMemo(() => {
-    const mine = tasks.filter((t) => t.profile === PROFILE && (tab === "active" ? !t.completed : t.completed));
-    // sort by due date ASC; tasks with no due date go to bottom
+    const mine = items.filter(
+      (i) => i.profile === PROFILE && (tab === "active" ? !i.completed : i.completed)
+    );
+    // sort by target date ASC; empty target → bottom
     return mine.sort((a, b) => {
-      if (!a.due && !b.due) return a.createdAt.localeCompare(b.createdAt);
-      if (!a.due) return 1;
-      if (!b.due) return -1;
-      return a.due.localeCompare(b.due);
+      if (!a.target && !b.target) return a.createdAt.localeCompare(b.createdAt);
+      if (!a.target) return 1;
+      if (!b.target) return -1;
+      return a.target.localeCompare(b.target);
     });
-  }, [tasks, tab]);
+  }, [items, tab]);
 
-  function addTask(input: { title: string; due?: string }) {
+  function openAdd() {
+    setEditingId(null);
+    setShowForm(true);
+  }
+  function openEdit(id: string) {
+    setEditingId(id);
+    setShowForm(true);
+  }
+
+  function handleSave(form: Omit<GrowthItem, "id" | "createdAt" | "completed" | "profile"> & { completed?: boolean }) {
     const now = new Date().toISOString();
-    const next: Task = {
-      id: crypto.randomUUID(),
-      title: input.title,
-      due: input.due,
-      completed: false,
-      createdAt: now,
-      profile: PROFILE,
-    };
-    const updated = [next, ...tasks];
-    setTasks(updated);
-    saveAll(updated);
-    setShowAdd(false);
+
+    if (editingId) {
+      const updated = items.map((i) =>
+        i.id === editingId
+          ? {
+              ...i,
+              ...form,
+              progress: Math.max(0, Math.min(100, form.progress)),
+            }
+          : i
+      );
+      setItems(updated);
+      saveAll(updated);
+    } else {
+      const next: GrowthItem = {
+        id: crypto.randomUUID(),
+        title: form.title,
+        type: form.type,
+        start: form.start,
+        target: form.target,
+        progress: Math.max(0, Math.min(100, form.progress)),
+        notes: form.notes,
+        completed: !!form.completed || form.progress >= 100,
+        createdAt: now,
+        profile: PROFILE,
+      };
+      const updated = [next, ...items];
+      setItems(updated);
+      saveAll(updated);
+    }
+    setShowForm(false);
+    setEditingId(null);
   }
 
-  function toggleTask(id: string, done: boolean) {
-    const updated = tasks.map((t) => (t.id === id ? { ...t, completed: done } : t));
-    setTasks(updated);
+  function markComplete(id: string, done: boolean) {
+    const updated = items.map((i) => (i.id === id ? { ...i, completed: done, progress: done ? 100 : i.progress } : i));
+    setItems(updated);
     saveAll(updated);
   }
 
-  function removeTask(id: string) {
-    const updated = tasks.filter((t) => t.id !== id);
-    setTasks(updated);
+  function remove(id: string) {
+    const updated = items.filter((i) => i.id !== id);
+    setItems(updated);
     saveAll(updated);
     setDeleteId(null);
+  }
+
+  function getById(id: string | null) {
+    return items.find((i) => i.id === id) || null;
   }
 
   return (
@@ -179,8 +297,8 @@ export default function Todo() {
         {/* Header */}
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-neutral-900">To-do</h1>
-            <p className="text-sm text-neutral-600">Track work tasks with deadlines.</p>
+            <h1 className="text-2xl font-semibold text-neutral-900">Growth</h1>
+            <p className="text-sm text-neutral-600">Track certifications, skills, and experiences.</p>
           </div>
           <div className="flex items-center gap-2">
             <div className="inline-flex rounded-lg border border-neutral-200 bg-white/60 backdrop-blur-sm p-1">
@@ -198,67 +316,85 @@ export default function Todo() {
               </button>
             </div>
 
-            <Button onClick={() => setShowAdd(true)}>Add Task</Button>
+            <Button onClick={openAdd}>Add Goal</Button>
           </div>
         </div>
 
-        {/* Add form */}
-        {showAdd && (
+        {/* Add/Edit form */}
+        {showForm && (
           <div className="mb-4">
-            <AddTaskInline onAdd={addTask} onCancel={() => setShowAdd(false)} />
+            <GrowthForm
+              initial={editingId ? getById(editingId) ?? undefined : undefined}
+              onSave={handleSave}
+              onCancel={() => {
+                setShowForm(false);
+                setEditingId(null);
+              }}
+            />
           </div>
         )}
 
-        {/* List */}
-        <div className="rounded-xl border border-neutral-200 bg-white/70 backdrop-blur-sm shadow-sm">
+        {/* Cards */}
+        <div className="grid gap-4 md:grid-cols-2">
           {visible.length === 0 ? (
-            <div className="px-4 py-10 text-center text-neutral-500">
+            <div className="col-span-full px-4 py-10 text-center text-neutral-500">
               {tab === "active"
-                ? "No active tasks. Enjoy the calm or add one!"
-                : "No completed tasks yet."}
+                ? "No active growth items yet. Add your first goal!"
+                : "No completed items yet."}
             </div>
           ) : (
-            <ul className="divide-y divide-neutral-200">
-              {visible.map((t) => (
-                <li key={t.id} className="px-4 py-3 flex items-center gap-3">
-                  <input
-                    aria-label="Mark complete"
-                    type="checkbox"
-                    checked={t.completed}
-                    onChange={(e) => toggleTask(t.id, e.target.checked)}
-                    className="h-4 w-4 rounded border-neutral-300"
-                  />
-                  <div className="flex-1">
-                    <div className={`text-sm ${t.completed ? "line-through text-neutral-500" : "text-neutral-900"}`}>
-                      {t.title}
-                    </div>
+            visible.map((g) => (
+              <div
+                key={g.id}
+                className="rounded-xl border border-neutral-200 bg-white/70 backdrop-blur-sm shadow-sm p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-base font-semibold text-neutral-900">{g.title}</div>
                     <div className="text-xs text-neutral-600">
-                      {t.due ? `Due ${t.due}` : "No deadline"}
+                      {g.type}
+                      {g.start ? ` · Start ${g.start}` : ""}{g.target ? ` · Target ${g.target}` : ""}
                     </div>
                   </div>
-                  <button
-                    className="text-sm text-neutral-700 hover:underline underline-offset-2"
-                    onClick={() => setDeleteId(t.id)}
+                  <div className="text-sm text-neutral-700">{g.progress}%</div>
+                </div>
+
+                <div className="mt-2"><ProgressBar value={g.progress} /></div>
+
+                {g.notes && <div className="mt-2 text-sm text-neutral-800 whitespace-pre-wrap">{g.notes}</div>}
+
+                <div className="mt-3 flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => openEdit(g.id)}
                   >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => markComplete(g.id, !g.completed)}
+                  >
+                    {g.completed ? "Mark active" : "Mark complete"}
+                  </Button>
+                  <Button variant="ghost" onClick={() => setDeleteId(g.id)}>
                     Delete
-                  </button>
-                </li>
-              ))}
-            </ul>
+                  </Button>
+                </div>
+              </div>
+            ))
           )}
         </div>
       </div>
 
-      {/* Confirm delete dialog */}
       <ConfirmDialog
         open={!!deleteId}
-        title="Delete this task?"
-        description="This cannot be undone."
+        title="Delete this item?"
+        description="This action cannot be undone."
         confirmText="Delete"
         cancelText="Cancel"
         onCancel={() => setDeleteId(null)}
         onConfirm={() => {
-          if (deleteId) removeTask(deleteId);
+          if (deleteId) remove(deleteId);
         }}
       />
     </PaperBackground>
